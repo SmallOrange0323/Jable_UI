@@ -226,6 +226,9 @@ class MainApp(ctk.CTk):
                                       height=40, font=("Microsoft JhengHei", 12))
         self.url_entry.grid(row=0, column=0, padx=(0, 10), sticky="ew")
         
+        # 綁定右鍵直接貼上功能
+        self.url_entry.bind("<Button-3>", self._quick_paste)
+        
         analyze_btn = ctk.CTkButton(header_frame, text="添加下載", fg_color="#FF4D8C", hover_color="#E03A76", 
                                     height=40, font=("Microsoft JhengHei", 16, "bold"), command=self.add_url_to_queue)
         analyze_btn.grid(row=0, column=1)
@@ -305,6 +308,16 @@ class MainApp(ctk.CTk):
         self.global_status_lbl = ctk.CTkLabel(footer_frame, text=f"路徑: {self.settings['download_path']} | 系統就緒", 
                                               text_color="gray", font=("Microsoft JhengHei", 14))
         self.global_status_lbl.grid(row=0, column=1, sticky="e")
+
+    def _quick_paste(self, event):
+        """滑鼠右鍵點擊後自動清空並貼上剪貼簿內容"""
+        try:
+            clipboard_content = self.clipboard_get()
+            if clipboard_content:
+                self.url_entry.delete(0, 'end')
+                self.url_entry.insert(0, clipboard_content.strip())
+        except Exception:
+            pass
 
     def open_settings(self):
         SettingsWindow(self, self.settings, self._on_settings_saved)
