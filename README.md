@@ -70,14 +70,13 @@ docker run -it -v D:\downloads:/downloads jable-pro
 如果你想要修改程式碼並自行產生 `.exe` 執行檔，請使用內建的自動化打包工具。
 
 ### 打包 EXE 流程
-1. 確保專案根目錄下有 `ffmpeg.exe`。
-2. 執行 `build_gui.bat`。
-3. 該腳本會執行以下動作：
-   - 自動檢測 Python 環境。
-   - 安裝所有必要的庫 (customtkinter, PyInstaller 等)。
-   - 自行生成應用程式圖示。
+1. 執行 `build_gui.bat`。
+2. 該腳本會執行以下自動化流程：
+   - 偵測 Python 環境並安裝所有必要的庫。
+   - **自動偵測 FFmpeg**：若目錄下缺失 `ffmpeg.exe`，將自動從官方源下載並解壓。
+   - 自動生成應用程式圖示。
    - 執行 PyInstaller 打包。
-4. 打包完成後，最終的執行檔位於 `dist/` 資料夾內。
+3. 打包完成後，最終的執行檔位於 `dist/` 資料夾內。
 
 ---
 
