@@ -1,3 +1,5 @@
+> **我是完全不會寫程式的麻瓜，謝謝浣熊大大的心血，以下都是靠 Antigravity 跟 Gemini 3 flash 模型製作完成，如果有問題，我也只能繼續問 AI。**
+
 # 🚀 JableTV Downloader Pro
 
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
