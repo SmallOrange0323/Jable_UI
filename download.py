@@ -4,6 +4,7 @@ import re
 import m3u8
 import threading
 import traceback
+import sys
 from urllib.parse import urlparse
 from config import headers
 from crawler import prepareCrawl
@@ -18,6 +19,11 @@ def sanitize_filename(name):
 
 def check_ffmpeg():
     """檢查環境中是否有 ffmpeg"""
+    # 0. 檢查是否為打包環境且內建 ffmpeg.exe
+    if hasattr(sys, '_MEIPASS'):
+        if os.path.exists(os.path.join(sys._MEIPASS, 'ffmpeg.exe')):
+            return True
+            
     # 1. 檢查同目錄
     if os.path.exists('ffmpeg.exe'):
         return True
