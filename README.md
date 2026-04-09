@@ -1,126 +1,105 @@
-# JableTVDownload
+# 🚀 JableTV Downloader Pro
 
-## 下載JableTV好幫手
+[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
+[![Python](https://img.shields.io/badge/Python-3.10%2B-brightgreen.svg)](https://www.python.org/)
+[![Platform](https://img.shields.io/badge/Platform-Windows-lightgrey.svg)]()
 
-每次看正要爽的時候就給我卡住轉圈圈  
-
-直接下載到電腦看沒煩惱
-
----
-
-## 🐳 Docker 一鍵啟動（推薦）
-
-不需要手動安裝 ChromeDriver、FFmpeg、Python 環境，全部封裝在容器內。
-
-### 前置需求
-- 安裝 [Docker Desktop](https://www.docker.com/products/docker-desktop/)
-
-### 使用方法
-
-```bash
-# 1. 建立 image
-docker build -t jable-downloader .
-
-# 2. 執行（互動模式，下載影片存至本機 downloads 資料夾）
-docker run -it -v D:\downloads:/downloads jable-downloader
-```
+**JableTV Downloader Pro** 是一款基於 Python 開發的現代化影片下載工具，專為 JableTV 量身設計。本專案從原本的命令列工具進化為具備 **現代化 GUI 介面**、**分層排隊系統** 與 **自動化轉檔流程** 的專業級應用。
 
 ---
 
-## 💻 傳統安裝（Windows）
+## ✨ 核心特色
 
+### 🖥️ 現代化圖形介面 (GUI)
+- **CustomTkinter 框架**：打造具備現代質感的深色/淺色模式介面。
+- **即時預覽**：內建影片標題擷取與封面圖預覽功能。
+- **下載隊列管理**：全視窗化的隊列系統，支援個別任務的 **暫停、恢復與移除**。
+
+### ⚡ 強大的下載引擎
+- **多執行緒加速**：支援單一影片多連線並行下載 TS 碎塊，速度極快。
+- **全域任務排隊**：可自定義同時下載的影片數量，避免頻寬被單一任務佔滿。
+- **自動化流程**：從爬蟲分析網址、下載資料、FFmpeg 合併片段到產生 MP4，一氣呵成。
+
+### 🔍 智慧探索功能
+- **演員全集下載**：只需輸入演員專頁，自動抓取該演員所有影片並加入隊列。
+- **隨機探索**：點擊按鈕，自動從熱門影片中隨機挑選一部並準備下載。
+
+---
+
+## 🛠️ 環境需求與依賴
+
+### 1. 核心需求
+- **OS**: Windows (目前 GUI 主要針對 Windows 優化)
+- **Python**: 3.10 或更高版本
+- **瀏覽器**: 需安裝 Google Chrome (供 Selenium 爬蟲抓取動態內容)
+
+### 2. 關鍵依賴：FFmpeg (必備)
 > [!IMPORTANT]
-> **本專案需要 FFmpeg 才能進行影片轉檔與合成。**
-> 由於 `ffmpeg.exe` 檔案較大，本倉庫未包含此檔案。請依照以下步驟安裝：
-> 1. 前往 [FFmpeg 官網](https://www.ffmpeg.org/download.html) 或 [Gyan.dev](https://www.gyan.dev/ffmpeg/builds/) 下載預編譯版本。
-> 2. 將 `ffmpeg.exe` 放置於本專案根目錄下，或是將其路徑加入系統環境變數 (PATH)。
-> 3. 執行 `INIT.bat` 將會自動建置其餘環境。
-2. 若收到可以執行 RUN.bat 之訊息，執行 RUN.bat 即可使用此神器。
-
-### 1. 搭建並啟用虛擬環境
-
-```
-python -m venv jable
-jable/Scripts/activate
-```
-![image](https://github.com/hcjohn463/JableDownload/blob/main/img/createVenv.PNG)
-
-### 2. 下載所需套件
-
-```
-pip install -r requirements.txt
-```
-
-安裝 [FFmpeg] 用於轉檔
-
-### 3. 執行程式
-
-```
-python main.py
-```
-
-### 4. 輸入影片網址
-`https://jable.tv/videos/ipx-486/`  
-![image](https://github.com/hcjohn463/JableDownload/blob/main/img/download2.PNG)
-
-### 5. 等待下載與合成
-
-下載和合成影片皆有即時進度條顯示：
-
-```
-⬇ 下載進度:  73%|██████████████░░░░░  | 1334/1827 [01:12<00:27, 18.2片段/s]
-🎬 合成影片:  45%|█████████░░░░░░░░░░░ |  821/1827 [01:23<01:40]
-```
-
-### 6. 完成
-
-![image](https://github.com/hcjohn463/JableDownload/blob/main/img/demo2.png)
-
-### 如果覺得好用 再麻煩給個星星好評 謝謝!!
+> **本專案「未內建」FFmpeg 執行檔。**
+> FFmpeg 是將下載的 TS 片段合併並編碼為 MP4 的核心組件。
+> 
+> **安裝步驟：**
+> 1. 下載預編譯版本：[Gyan.dev (推薦)](https://www.gyan.dev/ffmpeg/builds/) 或 [FFmpeg 官網](https://www.ffmpeg.org/download.html)。
+> 2. 下載後解壓縮，將其中的 `ffmpeg.exe` 放置於本專案的 **根目錄** 下。
+> 3. 或者將 FFmpeg 的路徑加入系統環境變數 (PATH) 亦可。
 
 ---
 
-[FFmpeg]:<https://www.ffmpeg.org/>
+## 🚀 快速開始
 
----
+### 對於一般使用者 (Windows)
+1. **下載原始碼**。
+2. **安裝 FFmpeg**：將 `ffmpeg.exe` 放入專案資料夾。
+3. **初始化環境**：執行 `INIT.bat` 自動建立虛擬環境與安裝依賴。
+4. **啟動程式**：執行 `RUN.bat` 即可進入 GUI 介面。
 
-## Argument Parser
-
+### 對於 Docker 愛用者
+不需要手動安裝環境，直接使用容器化部署：
 ```bash
-python main.py -h
-python main.py --random True       # 下載隨機熱門影片
-python main.py --url <網址>         # 直接指定 URL
-python main.py --all_urls <演員頁>  # 下載演員所有影片
+# 建立 Image
+docker build -t jable-pro .
+
+# 執行（掛載下載目錄）
+docker run -it -v D:\downloads:/downloads jable-pro
 ```
 
 ---
 
-## ☸️ Kubernetes 支援
+## 📦 開發者與打包指南
 
-`k8s/` 資料夾內含完整 Kubernetes 配置，可將下載任務部署為 K8s Job：
+如果你想要修改程式碼並自行產生 `.exe` 執行檔，請使用內建的自動化打包工具。
 
-```bash
-kubectl apply -f k8s/pvc.yaml        # 建立持久化儲存
-kubectl apply -f k8s/configmap.yaml  # 套用設定
-kubectl apply -f k8s/job.yaml        # 執行下載任務
-kubectl get jobs                      # 查看任務狀態
-```
+### 打包 EXE 流程
+1. 確保專案根目錄下有 `ffmpeg.exe`。
+2. 執行 `build_gui.bat`。
+3. 該腳本會執行以下動作：
+   - 自動檢測 Python 環境。
+   - 安裝所有必要的庫 (customtkinter, PyInstaller 等)。
+   - 自行生成應用程式圖示。
+   - 執行 PyInstaller 打包。
+4. 打包完成後，最終的執行檔位於 `dist/` 資料夾內。
 
 ---
 
-## 📜 更新日誌 (Update Log)
+## 📐 技術架構
 
-| 版本 | 日期 | 內容 |
-| :--- | :--- | :--- |
-| **v2.0** | 2026/03/15 | 🐳 支援 Docker 容器化部署、☸️ K8s (Job/PVC/ConfigMap) 支援 |
-| | | 📊 下載與合成加入 `tqdm` 即時進度條、🚀 優化合成與轉檔速度 |
-| **v1.11**| 2023/04/19 | 🦕 新增 ffmpeg 自動轉檔 |
-| **v1.10**| 2023/04/19 | 🏹 兼容 Ubuntu Server |
-| **v1.9** | 2023/04/15 | 🦅 下載演員所有相關影片 |
-| **v1.8** | 2022/01/25 | 🚗 下載結束後自動抓取封面 |
-| **v1.7** | 2021/06/04 | 🐶 更改 m3u8 獲取方法 (正則表達式) |
-| **v1.6** | 2021/05/28 | 🌏 支援 Unix 系統 (Mac, Linux 等) |
-| **v1.5** | 2021/05/27 | 🍎 更新爬蟲網頁方法 |
-| **v1.4** | 2021/05/20 | 🌳 修改編碼問題 |
-| **v1.3** | 2021/05/06 | 🌈 增加下載進度提示、修改 Crypto 問題 |
-| **v1.2** | 2021/05/05 | ⭐ 更新穩定版本 |
+本專案採用模組化設計，各司其職：
+- **`gui.py`**: 主介面層，處理使用者互動與狀態顯示。
+- **`queue_manager.py`**: 管理並行任務與執行緒調度。
+- **`crawler.py`**: 核心爬蟲，負責解析 Jable 網站與獲取 m3u8。
+- **`download.py`**: TS 段落下載器。
+- **`merge.py` / `encode.py`**: 調用 FFmpeg 進行後期處理。
+
+---
+
+## 📜 聲明與致謝
+
+### 原始專案
+本專案的 UI 版本是基於 [hcjohn463/JableTVDownload](https://github.com/hcjohn463/JableTVDownload) 的核心下載邏輯進行重構與介面開發。
+
+### 免責聲明
+本工具僅供技術交流與學術研究使用，請勿用於非法下載或侵犯版權之行為。使用者需自行承擔使用本工具所產生之所有法律責任。
+
+---
+
+> 如果你覺得這個版本好用，歡迎給個 ⭐ Star 支持！
