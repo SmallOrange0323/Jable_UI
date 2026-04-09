@@ -19,15 +19,20 @@ def get_parser():
 
 
 def av_recommand():
-    headers = {'User-Agent': 'Mozilla/5.0'}
+    import requests
+    headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36'}
     url = 'https://jable.tv/'
-    request = Request(url, headers=headers)
-    web_content = urlopen(request).read()
-    # 得到繞過轉址後的 html
-    soup = BeautifulSoup(web_content, 'html.parser')
-    h6_tags = soup.find_all('h6', class_='title')
-    av_list = re.findall(r'https[^"]+', str(h6_tags))
-    return random.choice(av_list)
+    try:
+        response = requests.get(url, headers=headers, timeout=10)
+        soup = BeautifulSoup(response.text, 'html.parser')
+        h6_tags = soup.find_all('h6', class_='title')
+        # 精準匹配影片連結格式
+        av_list = re.findall(r'https://jable\.tv/videos/[^/"]+/', str(h6_tags))
+        if not av_list:
+            return None
+        return random.choice(av_list)
+    except Exception:
+        return None
 
 
 # print(av_recommand())

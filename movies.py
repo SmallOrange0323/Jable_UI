@@ -1,21 +1,27 @@
-# In[0]:
 import requests
 from config import headers
 from bs4 import BeautifulSoup
-from selenium import webdriver
-
+import os
 
 def movieLinks(url):
-  links = []
-  dr = webdriver.Chrome()
-  dr.get(url)
-  bs = BeautifulSoup(dr.page_source,"html.parser")
-  a_tags = bs.select('div.img-box>a')
-  print(a_tags)
-  for a_tag in a_tags:
-    links.append(a_tag['href'])
-  print('获取到 {0} 個影片'.format(len(links)))
-  print(links)
-  return links
+    # 網址標準化處理: 將 /model/ 替換為 /models/ (JableTV 網址規範變更)
+    if "jable.tv/model/" in url:
+        url = url.replace("jable.tv/model/", "jable.tv/models/")
+    
+    links = []
 
-# %%
+    try:
+        response = requests.get(url, headers=headers, timeout=15)
+        if response.status_code != 200:
+            return links
+            
+        bs = BeautifulSoup(response.text, "html.parser")
+        # 尋找所有影片連結
+        a_tags = bs.select('div.img-box>a')
+        for a_tag in a_tags:
+            links.append(a_tag['href'])
+            
+    except Exception as e:
+        print(f"解析演員頁面失敗: {e}")
+        
+    return links

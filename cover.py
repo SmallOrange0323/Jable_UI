@@ -3,6 +3,8 @@ import os
 from bs4 import BeautifulSoup
 
 
+from config import headers
+
 def getCover(html_file, folder_path):
   # get cover
   soup = BeautifulSoup(html_file, "html.parser")
@@ -15,12 +17,9 @@ def getCover(html_file, folder_path):
       if "preview.jpg" not in meta_content:
           continue
       try:
-          r = requests.get(meta_content)
+          r = requests.get(meta_content, headers=headers, timeout=15)
           with open(cover_path, "wb") as cover_fh:
-              r.raw.decode_content = True
-              for chunk in r.iter_content(chunk_size=1024):
-                  if chunk:
-                      cover_fh.write(chunk)
+              cover_fh.write(r.content)
       except Exception as e:
           print(f"unable to download cover: {e}")
 

@@ -9,16 +9,20 @@ import threading
 from tqdm import tqdm
 from Crypto.Cipher import AES
 
-
-def scrape(ci_params, folderPath, pbar, lock, session, urls):
+def scrape(ci_params, folderPath, pbar, lock, session, urls, stop_event, progress_callback):
     """
-    ci_params: dict 包含 key 和 iv
-    session: requests.Session 用於連線複用，加快下載
+    下載片段的核心函數。
     """
+    if stop_event and stop_event.is_set():
+        return False
+        
     fileName = urls.split('/')[-1][0:-3]
     saveName = os.path.join(folderPath, fileName + ".mp4")
 
-    # 如果檔案已存在，進度條不重複更新（因為 startCrawl 已過濾）
+    # 若檔案存在就不抓了
+    if os.path.exists(saveName):
+        return True
+
     try:
         response = session.get(urls, headers=headers, timeout=30)
         if response.status_code == 200:
@@ -29,18 +33,19 @@ def scrape(ci_params, folderPath, pbar, lock, session, urls):
             with open(saveName, 'ab') as f:
                 f.write(content_ts)
             
-            # ✅ 只有成功下載才更新進度條
             with lock:
-                pbar.update(1)
+                if pbar:
+                    pbar.update(1)
+                if progress_callback:
+                    # 使用 callback 取代 CLI 的 tqdm，或者兩者並行
+                    pass # 會在 _run_crawl 中集中處理
             return True
     except Exception:
         pass
     
     return False
 
-
 def measureSpeed(tsList, sample_count=3):
-    """並行測速，減少啟動延遲"""
     sample = tsList[:sample_count]
     times = []
     sizes = []
@@ -55,84 +60,94 @@ def measureSpeed(tsList, sample_count=3):
         except Exception:
             return 2.0, 0
 
-    print(f'正在測試您的網速（抽樣 {sample_count} 個片段，並行）...', end='', flush=True)
     with concurrent.futures.ThreadPoolExecutor(max_workers=sample_count) as ex:
         results = list(ex.map(_fetch, sample))
     times = [r[0] for r in results]
     sizes = [r[1] for r in results]
     avg_sec = sum(times) / len(times) if times else 2.0
     avg_speed_kb = sum(sizes) / sum(times) if sum(times) > 0 else 0
-    print(f' 平均網速: {avg_speed_kb:.0f} KB/s ({avg_sec:.2f} 秒/片段)')
     return avg_sec, avg_speed_kb
 
-
-def prepareCrawl(ci_params, folderPath, tsList):
+def prepareCrawl(ci_params, folderPath, tsList, stop_event=None, progress_callback=None, max_threads="自動"):
     downloadList = copy.deepcopy(tsList)
     total = len(downloadList)
 
     avg_sec_per_ts, avg_speed_kb = measureSpeed(tsList)
-    # 提高並發：上限 32、下限 8，公式放寬以善用頻寬
-    workers = min(32, max(8, int(avg_speed_kb / 200)))
-    print(f'開始下載 {total} 個片段（使用 {workers} 個執行緒）')
-
-    estimated_sec = (total * avg_sec_per_ts) / workers
-    est_m = int(estimated_sec // 60)
-    est_s = int(estimated_sec % 60)
-    print(f'預計等待時間: {est_m} 分 {est_s} 秒（依據您的實際網速估算）')
-
-    start_time = time.time()
-    startCrawl(ci_params, folderPath, downloadList, total, workers)
-    end_time = time.time()
-
-    actual_sec = end_time - start_time
-    act_m = int(actual_sec // 60)
-    act_s = int(actual_sec % 60)
-    print(f'\n花費 {act_m} 分 {act_s} 秒 爬取完成！')
-
-
-def startCrawl(ci_params, folderPath, downloadList, total, workers):
-    lock = threading.Lock()
-    round_num = 0
-    # 連線池：同一 host 複用 TCP，減少握手指數
-    with requests.Session() as session:
-        _run_crawl(ci_params, folderPath, downloadList, total, workers, lock, session)
-
-
-def _run_crawl(ci_params, folderPath, downloadList, total, workers, lock, session):
-    round_num = 0
-    # ✅ 初始化進度條，總數固定為 total
-    with tqdm(total=total, unit='片段', desc='⬇ 下載進度',
-              bar_format='{desc}: {percentage:3.0f}%|{bar}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}, {rate_fmt}]',
-              dynamic_ncols=True, colour='cyan') as pbar:
-
-        # 先檢查已經下載過的，更新進度條初始值
-        existing_count = 0
-        initial_list = list(downloadList)
-        for url in initial_list:
-            file_ts = url.split('/')[-1][0:-3] + '.mp4'
-            if os.path.exists(os.path.join(folderPath, file_ts)):
-                existing_count += 1
-                downloadList.remove(url)
+    
+    # 決定 workers 數量
+    if str(max_threads).isdigit():
+        workers = int(max_threads)
+    else:
+        workers = min(32, max(8, int(avg_speed_kb / 200)))
         
-        pbar.update(existing_count)
+    startCrawl(ci_params, folderPath, downloadList, total, workers, stop_event, progress_callback)
 
-        while downloadList:
-            round_num += 1
-            batch = list(downloadList)
+def startCrawl(ci_params, folderPath, downloadList, total, workers, stop_event, progress_callback):
+    lock = threading.Lock()
+    with requests.Session() as session:
+        _run_crawl(ci_params, folderPath, downloadList, total, workers, lock, session, stop_event, progress_callback)
 
-            with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as executor:
-                # scrape 使用 session 連線複用，加快下載
-                executor.map(partial(scrape, ci_params, folderPath, pbar, lock, session), batch)
-
-            # 更新剩餘清單：移除已成功下載的
-            new_download_list = []
-            for url in downloadList:
-                file_ts = url.split('/')[-1][0:-3] + '.mp4'
-                if not os.path.exists(os.path.join(folderPath, file_ts)):
-                    new_download_list.append(url)
+def _run_crawl(ci_params, folderPath, downloadList, total, workers, lock, session, stop_event, progress_callback):
+    # 預檢：只找出還沒存在的檔案，將初始 I/O 降到最低
+    pending_list = []
+    processed = 0
+    for url in downloadList:
+        file_ts = url.split('/')[-1][0:-3] + '.mp4'
+        if os.path.exists(os.path.join(folderPath, file_ts)):
+            processed += 1
+        else:
+            pending_list.append(url)
             
-            downloadList = new_download_list
+    lock_processed = threading.Lock()
+    retry_list = []
+    lock_retry = threading.Lock()
 
-            if downloadList:
-                tqdm.write(f'⚠ Round {round_num} 結束，還有 {len(downloadList)} 個片段失敗，準備重試...')
-                time.sleep(1) # 短暫休息避免被封鎖
+    def _progress_hook(future, url):
+        nonlocal processed
+        if stop_event and stop_event.is_set():
+            return
+        
+        try:
+            result = future.result()
+            if result:
+                with lock_processed:
+                    processed += 1
+                    if progress_callback:
+                        percent = (processed / total) * 100
+                        progress_callback(processed, total, percent, f"{processed}/{total}", status="downloading")
+            else:
+                with lock_retry:
+                    retry_list.append(url)
+        except Exception:
+            with lock_retry:
+                retry_list.append(url)
+
+    # 效能關鍵點：保持 Executor 在外層，工人們不用反覆解散重建
+    with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as executor:
+        while pending_list:
+            if stop_event and stop_event.is_set():
+                if progress_callback: progress_callback(processed, total, (processed/total)*100, "任務已暫停", status="paused")
+                break
+
+            with lock_retry:
+                retry_list.clear() # 清空失敗名單，準備新一輪
+
+            futures = []
+            for url in pending_list:
+                f = executor.submit(scrape, ci_params, folderPath, None, lock, session, url, stop_event, None)
+                # 使用閉包綁定 URL
+                f.add_done_callback(lambda fut, u=url: _progress_hook(fut, u))
+                futures.append(f)
+            
+            # 等待當下所有的任務都跑完
+            concurrent.futures.wait(futures)
+
+            if stop_event and stop_event.is_set():
+                break
+
+            # 從 retry_list 拿回失敗的 URL 進行下一次迴圈 (完全不需要再執行 os.path.exists 掃碟)
+            with lock_retry:
+                pending_list = list(retry_list)
+
+            if pending_list:
+                time.sleep(1) # 重試前給伺服器稍做喘息

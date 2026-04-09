@@ -1,96 +1,157 @@
-
 import requests
 import os
 import re
-import urllib.request
 import m3u8
+import threading
 from config import headers
 from crawler import prepareCrawl
 from merge import mergeMp4
 from encode import ffmpegEncode
 from delete import deleteM3u8, deleteMp4
 from cover import getCover
-from args import *
-from selenium import webdriver
-from selenium.webdriver.chrome.options import Options
 
-def download(url):
+def download_task(url, base_path, stop_event=None, progress_callback=None, info_callback=None, max_threads="自動"):
+    """
+     GUI 專用的下載任務進入點。
+    :param url: 影片網址
+    :param base_path: 使用者設定的總下載儲存路徑
+    :param stop_event: threading.Event 用於接收中斷訊號
+    :param progress_callback: (processed, total, percent, text, status)
+    :param info_callback: (info_dict) 用於提早回傳封面與標題
+    """
+    try:
+        if progress_callback: progress_callback(0, 100, 0, "正在啟動瀏覽器解析網址...", status="analyzing")
+        
+        urlSplit = [u for u in url.split('/') if u.strip()]
+        if len(urlSplit) < 4:
+            if progress_callback: progress_callback(0, 100, 0, "❌ 網址格式錯誤", status="error")
+            return False
+            
+        dirName = urlSplit[-1]
+        folderPath = os.path.join(base_path, dirName)
+        
+        if os.path.exists(os.path.join(folderPath, f'{dirName}.mp4')):
+            cover_path = os.path.join(folderPath, f"{dirName}.jpg")
+            if info_callback:
+                 info_callback({
+                     "title": dirName, 
+                     "cover": cover_path if os.path.exists(cover_path) else None, 
+                     "dirName": dirName
+                 })
+            if progress_callback: progress_callback(100, 100, 100, "✅ 影片已存在", status="done")
+            return True
+            
+        if not os.path.exists(folderPath):
+            os.makedirs(folderPath)
 
-  print('正在下載影片: ' + url)
-  # 建立番號資料夾
-  urlSplit = url.split('/')
-  dirName = urlSplit[-2]
-  if os.path.exists(f'{dirName}/{dirName}.mp4'):
-    print('番號資料夾已存在, 跳過...')
-    return
-  if not os.path.exists(dirName):
-      os.makedirs(dirName)
-  folderPath = os.path.join(os.getcwd(), dirName)
-  
-  #配置Selenium參數
-  options = Options()
-  options.add_argument('--no-sandbox')
-  options.add_argument('--disable-dev-shm-usage')
-  options.add_argument('--disable-extensions')
-  options.add_argument('--headless')
-  options.add_argument("user-agent=Mozilla/5.0 (Windows NT 6.1; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/84.0.4147.125 Safari/537.36")
-  dr = webdriver.Chrome(options=options)
-  dr.get(url)
-  result = re.search("https://.+m3u8", dr.page_source)
-  print(f'result: {result}')
-  m3u8url = result[0]
-  print(f'm3u8url: {m3u8url}')
+        if stop_event and stop_event.is_set(): return False
+        
+        try:
+            resp = requests.get(url, headers=headers, timeout=15)
+            if resp.status_code != 200:
+                 if progress_callback: progress_callback(0, 100, 0, f"❌ 網頁拒絕連線 (HTTP {resp.status_code})", status="error")
+                 return False
+            page_text = resp.text
+        except Exception as e:
+             if progress_callback: progress_callback(0, 100, 0, f"❌ 載入網頁異常或超時", status="error")
+             return False
+        
+        if stop_event and stop_event.is_set():
+            return False
 
-  # 得到 m3u8 網址
-  m3u8urlList = m3u8url.split('/')
-  m3u8urlList.pop(-1)
-  downloadurl = '/'.join(m3u8urlList)
+        # 透過 Regex 提取標題
+        title_match = re.search(r'<title>(.*?)</title>', page_text)
+        page_title = title_match.group(1).replace(" - Jable.tv", "").strip() if title_match else dirName
+        
+        try:
+            getCover(html_file=page_text, folder_path=folderPath)
+        except Exception:
+            pass
+            
+        cover_path = os.path.join(folderPath, f"{dirName}.jpg")
+        
+        if info_callback:
+            info_callback({
+                "title": page_title,
+                "cover": cover_path if os.path.exists(cover_path) else None,
+                "dirName": dirName
+            })
 
-  # 儲存 m3u8 file 至資料夾
-  m3u8file = os.path.join(folderPath, dirName + '.m3u8')
-  urllib.request.urlretrieve(m3u8url, m3u8file)
+        result = re.search(r"https://.+?\.m3u8", page_text)
+        if not result:
+            if progress_callback: progress_callback(0, 100, 0, "❌ 找不到影片串流 (可能遭阻擋或網址錯誤)", status="error")
+            return False
+            
+        m3u8url = result.group(0)
 
-  # 得到 m3u8 file裡的 URI和 IV
-  m3u8obj = m3u8.load(m3u8file)
-  m3u8uri = ''
-  m3u8iv = ''
+        if progress_callback: progress_callback(0, 100, 0, "分析完成，準備下載碎塊", status="downloading")
 
-  for key in m3u8obj.keys:
-      if key:
-          m3u8uri = key.uri
-          m3u8iv = key.iv
+        # 取得 m3u8
+        try:
+            m3u8_resp = requests.get(m3u8url, headers=headers, timeout=15)
+            if m3u8_resp.status_code != 200:
+                raise Exception(f"HTTP {m3u8_resp.status_code}")
+                
+            m3u8file = os.path.join(folderPath, f'{dirName}.m3u8')
+            with open(m3u8file, 'wb') as f:
+                f.write(m3u8_resp.content)
+            
+            # 使用 loads 避免路徑解析錯誤
+            m3u8obj = m3u8.loads(m3u8_resp.text, uri=m3u8url)
+            
+            # 計算碎塊下載的基礎 URL
+            m3u8urlList = m3u8url.split('/')
+            m3u8urlList.pop(-1)
+            downloadurl = '/'.join(m3u8urlList)
+        except Exception as e:
+            if progress_callback: progress_callback(0, 100, 0, f"❌ 取得 m3u8 失敗: {str(e)}", status="error")
+            return False
 
-  # 儲存 ts網址 in tsList
-  tsList = []
-  for seg in m3u8obj.segments:
-      tsUrl = downloadurl + '/' + seg.uri
-      tsList.append(tsUrl)
+            
+        m3u8uri = ''
+        m3u8iv = ''
+        for key in m3u8obj.keys:
+            if key:
+                m3u8uri = key.uri
+                m3u8iv = key.iv
 
-  # 有加密
-  if m3u8uri:
-      m3u8keyurl = downloadurl + '/' + m3u8uri
-      response = requests.get(m3u8keyurl, headers=headers, timeout=10)
-      contentKey = response.content
-      vt = m3u8iv.replace("0x", "")[:16].encode()  # IV 取前 16 位
-      # ✅ 改存 dict，讓每個執行緒自行建立 AES cipher（避免 Race Condition）
-      ci_params = {'key': contentKey, 'iv': vt}
-  else:
-      ci_params = None
+        tsList = []
+        for seg in m3u8obj.segments:
+            tsUrl = f"{downloadurl}/{seg.uri}"
+            tsList.append(tsUrl)
 
-  # 刪除m3u8 file
-  deleteM3u8(folderPath)
+        if m3u8uri:
+            m3u8keyurl = f"{downloadurl}/{m3u8uri}"
+            response = requests.get(m3u8keyurl, headers=headers, timeout=10)
+            contentKey = response.content
+            vt = m3u8iv.replace("0x", "")[:16].encode()
+            ci_params = {'key': contentKey, 'iv': vt}
+        else:
+            ci_params = None
 
-  # 開始爬蟲並下載mp4片段至資料夾
-  prepareCrawl(ci_params, folderPath, tsList)
+        if os.path.exists(m3u8file):
+            deleteM3u8(folderPath)
 
-  # 合成 mp4（Python 二進位串接）
-  mergeMp4(folderPath, tsList)
+        if stop_event and stop_event.is_set(): return False
 
-  # 轉檔：-c copy + faststart，讓播放器可邊下載邊播
-  ffmpegEncode(folderPath, dirName, 1)
+        # 開始多執行緒下載
+        prepareCrawl(ci_params, folderPath, tsList, stop_event=stop_event, progress_callback=progress_callback, max_threads=max_threads)
+        
+        if stop_event and stop_event.is_set():
+             return False
 
-  # 刪除子mp4
-  deleteMp4(folderPath)
+        if progress_callback: progress_callback(0, 100, 0, "準備 FFmpeg 合成...", status="merging")
+        mergeMp4(folderPath, tsList)
+        
+        if stop_event and stop_event.is_set(): return False
+        
+        ffmpegEncode(folderPath, dirName, 1, stop_event=stop_event, progress_callback=progress_callback)
+        
+        if stop_event and stop_event.is_set(): return False
+        deleteMp4(folderPath)
 
-  # 取得封面
-  getCover(html_file=dr.page_source, folder_path=folderPath)
+        return True
+    except Exception as e:
+        if stop_event and stop_event.is_set(): return False
+        if progress_callback: progress_callback(0, 100, 0, f"❌ 異常錯誤: {str(e)}", status="error")
+        return False

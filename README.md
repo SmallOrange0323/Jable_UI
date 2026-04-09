@@ -29,7 +29,12 @@ docker run -it -v D:\downloads:/downloads jable-downloader
 
 ## 💻 傳統安裝（Windows）
 
-1. 請自行安裝 ffmpeg，裝完之後執行 INIT.bat 將會自動建置其餘環境。
+> [!IMPORTANT]
+> **本專案需要 FFmpeg 才能進行影片轉檔與合成。**
+> 由於 `ffmpeg.exe` 檔案較大，本倉庫未包含此檔案。請依照以下步驟安裝：
+> 1. 前往 [FFmpeg 官網](https://www.ffmpeg.org/download.html) 或 [Gyan.dev](https://www.gyan.dev/ffmpeg/builds/) 下載預編譯版本。
+> 2. 將 `ffmpeg.exe` 放置於本專案根目錄下，或是將其路徑加入系統環境變數 (PATH)。
+> 3. 執行 `INIT.bat` 將會自動建置其餘環境。
 2. 若收到可以執行 RUN.bat 之訊息，執行 RUN.bat 即可使用此神器。
 
 ### 1. 搭建並啟用虛擬環境
