@@ -3,12 +3,17 @@ import os
 import re
 import m3u8
 import threading
+from urllib.parse import urlparse
 from config import headers
 from crawler import prepareCrawl
 from merge import mergeMp4
 from encode import ffmpegEncode
 from delete import deleteM3u8, deleteMp4
 from cover import getCover
+
+def sanitize_filename(name):
+    """移除 Windows 不允許的檔案名稱字元"""
+    return re.sub(r'[\\/:*?"<>|]', '_', name).strip()
 
 def download_task(url, base_path, stop_event=None, progress_callback=None, info_callback=None, max_threads="自動"):
     """
@@ -22,12 +27,15 @@ def download_task(url, base_path, stop_event=None, progress_callback=None, info_
     try:
         if progress_callback: progress_callback(0, 100, 0, "正在啟動瀏覽器解析網址...", status="analyzing")
         
-        urlSplit = [u for u in url.split('/') if u.strip()]
-        if len(urlSplit) < 4:
+        # 只取網址的路徑部分，忽略 ? 之後的參數
+        clean_path = urlparse(url).path
+        urlSplit = [u for u in clean_path.split('/') if u.strip()]
+        
+        if len(urlSplit) < 1: # 只要路徑有內容即可
             if progress_callback: progress_callback(0, 100, 0, "❌ 網址格式錯誤", status="error")
             return False
             
-        dirName = urlSplit[-1]
+        dirName = sanitize_filename(urlSplit[-1])
         folderPath = os.path.join(base_path, dirName)
         
         if os.path.exists(os.path.join(folderPath, f'{dirName}.mp4')):
@@ -62,6 +70,7 @@ def download_task(url, base_path, stop_event=None, progress_callback=None, info_
         # 透過 Regex 提取標題
         title_match = re.search(r'<title>(.*?)</title>', page_text)
         page_title = title_match.group(1).replace(" - Jable.tv", "").strip() if title_match else dirName
+        page_title = sanitize_filename(page_title)
         
         try:
             getCover(html_file=page_text, folder_path=folderPath)
