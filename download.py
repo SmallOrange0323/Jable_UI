@@ -3,6 +3,7 @@ import os
 import re
 import m3u8
 import threading
+import traceback
 from urllib.parse import urlparse
 from config import headers
 from crawler import prepareCrawl
@@ -15,6 +16,22 @@ def sanitize_filename(name):
     """移除 Windows 不允許的檔案名稱字元"""
     return re.sub(r'[\\/:*?"<>|]', '_', name).strip()
 
+def check_ffmpeg():
+    """檢查環境中是否有 ffmpeg"""
+    # 1. 檢查同目錄
+    if os.path.exists('ffmpeg.exe'):
+        return True
+    # 2. 檢查系統 PATH
+    try:
+        import subprocess
+        creationflags = 0
+        if os.name == 'nt':
+            creationflags = subprocess.CREATE_NO_WINDOW
+        subprocess.run(['ffmpeg', '-version'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, creationflags=creationflags)
+        return True
+    except Exception:
+        return False
+
 def download_task(url, base_path, stop_event=None, progress_callback=None, info_callback=None, max_threads="自動"):
     """
      GUI 專用的下載任務進入點。
@@ -25,7 +42,12 @@ def download_task(url, base_path, stop_event=None, progress_callback=None, info_
     :param info_callback: (info_dict) 用於提早回傳封面與標題
     """
     try:
-        if progress_callback: progress_callback(0, 100, 0, "正在啟動瀏覽器解析網址...", status="analyzing")
+        if progress_callback: progress_callback(0, 100, 0, "正在初始化下載環境...", status="analyzing")
+        
+        # 預檢 FFmpeg
+        if not check_ffmpeg():
+            if progress_callback: progress_callback(0, 100, 0, "❌ 找不到 FFmpeg！請將 ffmpeg.exe 放在專案目錄下", status="error")
+            return False
         
         # 只取網址的路徑部分，忽略 ? 之後的參數
         clean_path = urlparse(url).path
@@ -162,5 +184,15 @@ def download_task(url, base_path, stop_event=None, progress_callback=None, info_
         return True
     except Exception as e:
         if stop_event and stop_event.is_set(): return False
-        if progress_callback: progress_callback(0, 100, 0, f"❌ 異常錯誤: {str(e)}", status="error")
+        
+        # 擷取詳細的錯誤行號
+        tb = traceback.extract_tb(e.__traceback__)
+        last_call = tb[-1]
+        line_info = f" (在 {os.path.basename(last_call.filename)} 第 {last_call.lineno} 行)"
+        
+        error_msg = f"❌ 異常錯誤: {str(e)}{line_info}"
+        print(f"Download Task Failed: {error_msg}")
+        traceback.print_exc()
+        
+        if progress_callback: progress_callback(0, 100, 0, error_msg, status="error")
         return False

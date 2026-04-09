@@ -21,11 +21,13 @@ def ffmpegEncode(folder_path, file_name, action=1, stop_event=None, progress_cal
         if progress_callback: progress_callback(0, 100, 0, "❌ 找不到合成清單", status="error")
         return
 
-    # 優先偵測是否為打包後的環境
-    if hasattr(sys, '_MEIPASS'):
+    # 優先偵測順序：1. 目前資料夾 2. 打包環境 3. 系統 PATH
+    if os.path.exists('ffmpeg.exe'):
+        ffmpeg_bin = 'ffmpeg.exe'
+    elif hasattr(sys, '_MEIPASS'):
         ffmpeg_bin = os.path.join(sys._MEIPASS, 'ffmpeg.exe')
     else:
-        ffmpeg_bin = 'ffmpeg' # 若非打包環境，則依賴系統 PATH
+        ffmpeg_bin = 'ffmpeg' # 依賴系統 PATH
 
     total_segments = get_segment_count(folder_path) or 1
 
