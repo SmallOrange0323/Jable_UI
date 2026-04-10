@@ -9,7 +9,7 @@ from urllib.parse import urlparse
 from config import headers
 from crawler import prepareCrawl
 from merge import mergeMp4
-from encode import ffmpegEncode
+from encode import ffmpegEncode, get_ffmpeg_path
 from delete import deleteM3u8, deleteMp4
 from cover import getCover
 
@@ -19,21 +19,14 @@ def sanitize_filename(name):
 
 def check_ffmpeg():
     """檢查環境中是否有 ffmpeg"""
-    # 0. 檢查是否為打包環境且內建 ffmpeg.exe
-    if hasattr(sys, '_MEIPASS'):
-        if os.path.exists(os.path.join(sys._MEIPASS, 'ffmpeg.exe')):
-            return True
-            
-    # 1. 檢查同目錄
-    if os.path.exists('ffmpeg.exe'):
+    ffmpeg_bin = get_ffmpeg_path()
+    if ffmpeg_bin != 'ffmpeg':  # 找到明確路徑（非 PATH fallback）
         return True
-    # 2. 檢查系統 PATH
+    # 驗證系統 PATH 中是否真的存在 ffmpeg
     try:
-        import subprocess
-        creationflags = 0
-        if os.name == 'nt':
-            creationflags = subprocess.CREATE_NO_WINDOW
-        subprocess.run(['ffmpeg', '-version'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, creationflags=creationflags)
+        creationflags = subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0
+        subprocess.run([ffmpeg_bin, '-version'], stdout=subprocess.DEVNULL,
+                       stderr=subprocess.DEVNULL, creationflags=creationflags)
         return True
     except Exception:
         return False
@@ -159,9 +152,15 @@ def download_task(url, base_path, stop_event=None, progress_callback=None, info_
 
         if m3u8uri:
             m3u8keyurl = f"{downloadurl}/{m3u8uri}"
-            response = requests.get(m3u8keyurl, headers=headers, timeout=10)
-            contentKey = response.content
-            vt = m3u8iv.replace("0x", "")[:16].encode()
+            try:
+                key_resp = requests.get(m3u8keyurl, headers=headers, timeout=10)
+                if key_resp.status_code != 200:
+                    raise Exception(f"HTTP {key_resp.status_code}")
+                contentKey = key_resp.content
+            except Exception as e:
+                if progress_callback: progress_callback(0, 100, 0, f"❌ 取得解密金鑰失敗: {str(e)}", status="error")
+                return False
+            vt = bytes.fromhex(m3u8iv.replace("0x", "").zfill(32))
             ci_params = {'key': contentKey, 'iv': vt}
         else:
             ci_params = None

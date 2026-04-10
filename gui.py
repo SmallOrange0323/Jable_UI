@@ -92,12 +92,13 @@ class SettingsWindow(ctk.CTkToplevel):
         self.destroy()
 
 class JobItemFrame(ctk.CTkFrame):
-    def __init__(self, master, job_id, url, manager, on_click_callback, **kwargs):
+    def __init__(self, master, job_id, url, manager, on_click_callback, get_path_callback, **kwargs):
         super().__init__(master, **kwargs)
         self.job_id = job_id
         self.url = url
         self.manager = manager
         self.on_click_callback = on_click_callback
+        self.get_path_callback = get_path_callback
         self.dir_name = "(擷取資訊中...)"
         
         self.info_dict = {"title": "正在分析網址...", "cover": None}
@@ -143,7 +144,7 @@ class JobItemFrame(ctk.CTkFrame):
 
     def _on_double_click(self, event):
         if self.dir_name and self.dir_name != "(擷取資訊中...)":
-            base_path = self.master.master.master.settings["download_path"]
+            base_path = self.get_path_callback()
             path = os.path.join(base_path, self.dir_name)
             if os.path.exists(path) and os.name == 'nt':
                 os.startfile(path)
@@ -209,9 +210,17 @@ class MainApp(ctk.CTk):
         
         self.job_frames = {}
         self.selected_item = None
+        self._cover_cache = {}       # path -> CTkImage，避免重複讀檔
+        self._preview_req_id = 0     # 防止快速點擊時舊請求覆蓋新結果
         
         self._build_ui()
         set_window_icon(self)
+        self.protocol("WM_DELETE_WINDOW", self._on_closing)
+
+    def _on_closing(self):
+        """視窗關閉時優雅地停止背景執行緒"""
+        self.queue_manager.shutdown()
+        self.destroy()
 
     def _build_ui(self):
         self.grid_rowconfigure(1, weight=1)
@@ -375,7 +384,7 @@ class MainApp(ctk.CTk):
         if not url: return
         self.url_entry.delete(0, 'end')
         
-        job_id = f"job_{int(time.time()*1000)}"
+        job_id = str(uuid.uuid4())
         
         def on_click(j_id, item_frame):
             if self.selected_item:
@@ -384,7 +393,10 @@ class MainApp(ctk.CTk):
             self.selected_item.highlight()
             self.update_preview(self.job_frames[j_id].info_dict)
             
-        item = JobItemFrame(self.queue_frame, job_id, url, self.queue_manager, on_click)
+        item = JobItemFrame(
+            self.queue_frame, job_id, url, self.queue_manager, on_click,
+            get_path_callback=lambda: self.settings["download_path"]
+        )
         item.pack(fill="x", pady=5)
         self.job_frames[job_id] = item
         
@@ -438,16 +450,38 @@ class MainApp(ctk.CTk):
     def update_preview(self, info_dict):
         self.preview_title.configure(text=info_dict.get("title", "無標題"))
         cover_path = info_dict.get("cover")
-        if cover_path and os.path.exists(cover_path):
+
+        if not cover_path or not os.path.exists(cover_path):
+            self.preview_image_lbl.configure(image="", text="分析中或無封面圖")
+            return
+
+        # 快取命中：直接顯示，不開背景執行緒
+        if cover_path in self._cover_cache:
+            self.preview_image_lbl.configure(image=self._cover_cache[cover_path], text="")
+            return
+
+        # 遞增請求 ID，讓舊請求在回來時知道自己已過時
+        self._preview_req_id += 1
+        req_id = self._preview_req_id
+        self.preview_image_lbl.configure(image="", text="載入中...")
+
+        def _load_image():
             try:
                 img = Image.open(cover_path)
                 img.thumbnail((350, 450))
                 ctk_img = ctk.CTkImage(light_image=img, dark_image=img, size=img.size)
-                self.preview_image_lbl.configure(image=ctk_img, text="")
+                def _update():
+                    if req_id == self._preview_req_id:  # 只更新最新的請求
+                        self._cover_cache[cover_path] = ctk_img
+                        self.preview_image_lbl.configure(image=ctk_img, text="")
+                self.after(0, _update)
             except Exception:
-                self.preview_image_lbl.configure(image="", text="無法載入封面")
-        else:
-             self.preview_image_lbl.configure(image="", text="分析中或無封面圖")
+                def _error():
+                    if req_id == self._preview_req_id:
+                        self.preview_image_lbl.configure(image="", text="無法載入封面")
+                self.after(0, _error)
+
+        threading.Thread(target=_load_image, daemon=True).start()
 
     def start_all(self):
         for jid in self.queue_manager.jobs.keys():

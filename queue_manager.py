@@ -63,6 +63,7 @@ class TaskQueueManager:
         self.jobs = {} # job_id -> DownloadJob
         self.max_concurrent = 2
         self.lock = threading.Lock()
+        self._stop_event = threading.Event()
         self._monitor_thread = threading.Thread(target=self._monitor_loop, daemon=True)
         self._monitor_thread.start()
         
@@ -91,9 +92,13 @@ class TaskQueueManager:
                 self.jobs[job_id].cancel()
                 del self.jobs[job_id]
 
+    def shutdown(self):
+        """停止監控執行緒，關閉應用程式時呼叫"""
+        self._stop_event.set()
+
     def _monitor_loop(self):
         """定時監控隊列，若有空位則啟動新任務"""
-        while True:
+        while not self._stop_event.is_set():
             with self.lock:
                 running_count = sum(1 for j in self.jobs.values() if j.status == "running")
                 

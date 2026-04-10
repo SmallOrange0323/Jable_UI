@@ -3,6 +3,16 @@ import subprocess
 import threading
 import sys
 
+def get_ffmpeg_path():
+    """取得 ffmpeg 可執行檔路徑，優先順序：打包環境 > 同目錄 > 系統 PATH"""
+    if hasattr(sys, '_MEIPASS'):
+        meipass_ffmpeg = os.path.join(sys._MEIPASS, 'ffmpeg.exe')
+        if os.path.exists(meipass_ffmpeg):
+            return meipass_ffmpeg
+    if os.path.exists('ffmpeg.exe'):
+        return 'ffmpeg.exe'
+    return 'ffmpeg'  # 依賴系統 PATH
+
 def get_segment_count(folder_path):
     try:
         with open(os.path.join(folder_path, 'concat_list.txt'), 'r', encoding='utf-8') as f:
@@ -21,13 +31,8 @@ def ffmpegEncode(folder_path, file_name, action=1, stop_event=None, progress_cal
         if progress_callback: progress_callback(0, 100, 0, "❌ 找不到合成清單", status="error")
         return
 
-    # 優先偵測順序：1. 目前資料夾 2. 打包環境 3. 系統 PATH
-    if os.path.exists('ffmpeg.exe'):
-        ffmpeg_bin = 'ffmpeg.exe'
-    elif hasattr(sys, '_MEIPASS'):
-        ffmpeg_bin = os.path.join(sys._MEIPASS, 'ffmpeg.exe')
-    else:
-        ffmpeg_bin = 'ffmpeg' # 依賴系統 PATH
+    # 使用統一的路徑偵測邏輯
+    ffmpeg_bin = get_ffmpeg_path()
 
     total_segments = get_segment_count(folder_path) or 1
 

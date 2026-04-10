@@ -20,7 +20,6 @@ def get_parser():
 
 def av_recommand():
     import requests
-    headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36'}
     url = 'https://jable.tv/'
     try:
         response = requests.get(url, headers=headers, timeout=10)
@@ -34,5 +33,3 @@ def av_recommand():
     except Exception:
         return None
 
-
-# print(av_recommand())

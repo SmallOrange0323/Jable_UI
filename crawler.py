@@ -9,7 +9,7 @@ import threading
 from tqdm import tqdm
 from Crypto.Cipher import AES
 
-def scrape(ci_params, folderPath, pbar, lock, session, urls, stop_event, progress_callback):
+def scrape(ci_params, folderPath, lock, session, urls, stop_event, progress_callback):
     """
     下載片段的核心函數。
     """
@@ -30,15 +30,12 @@ def scrape(ci_params, folderPath, pbar, lock, session, urls, stop_event, progres
             if ci_params:
                 ci = AES.new(ci_params['key'], AES.MODE_CBC, ci_params['iv'])
                 content_ts = ci.decrypt(content_ts)
-            with open(saveName, 'ab') as f:
+            with open(saveName, 'wb') as f:
                 f.write(content_ts)
             
             with lock:
-                if pbar:
-                    pbar.update(1)
                 if progress_callback:
-                    # 使用 callback 取代 CLI 的 tqdm，或者兩者並行
-                    pass # 會在 _run_crawl 中集中處理
+                    pass  # 進度集中由 _progress_hook 處理
             return True
     except Exception:
         pass
@@ -134,7 +131,7 @@ def _run_crawl(ci_params, folderPath, downloadList, total, workers, lock, sessio
 
             futures = []
             for url in pending_list:
-                f = executor.submit(scrape, ci_params, folderPath, None, lock, session, url, stop_event, None)
+                f = executor.submit(scrape, ci_params, folderPath, lock, session, url, stop_event, None)
                 # 使用閉包綁定 URL
                 f.add_done_callback(lambda fut, u=url: _progress_hook(fut, u))
                 futures.append(f)

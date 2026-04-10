@@ -1,12 +1,10 @@
 import os
 import time
-from tqdm import tqdm
 
 
 def mergeMp4(folderPath, tsList):
     """產生 FFmpeg concat 用的清單檔案，不再進行二進位串接以節省時間與 IO"""
     start_time = time.time()
-    # video_name = folderPath.split(os.path.sep)[-1]
     concat_list_path = os.path.join(folderPath, 'concat_list.txt')
 
     print('正在準備合成清單..')

@@ -27,4 +27,6 @@ downloads/
 # PyInstaller / 打包產物
 build/
 dist/
-
+
+ffmpeg.exe
+settings.json

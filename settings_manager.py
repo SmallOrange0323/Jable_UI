@@ -1,7 +1,7 @@
 import json
 import os
 
-SETTINGS_FILE = "settings.json"
+SETTINGS_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "settings.json")
 
 def get_default_download_path():
     """取得預設的 Windows 下載資料夾，並加上 JableTV 子目錄"""

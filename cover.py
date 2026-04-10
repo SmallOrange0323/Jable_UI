@@ -18,8 +18,11 @@ def getCover(html_file, folder_path):
           continue
       try:
           r = requests.get(meta_content, headers=headers, timeout=15)
-          with open(cover_path, "wb") as cover_fh:
-              cover_fh.write(r.content)
+          if r.status_code == 200:
+              with open(cover_path, "wb") as cover_fh:
+                  cover_fh.write(r.content)
+          else:
+              print(f"封面下載失敗 (HTTP {r.status_code}): {meta_content}")
       except Exception as e:
           print(f"unable to download cover: {e}")
 
